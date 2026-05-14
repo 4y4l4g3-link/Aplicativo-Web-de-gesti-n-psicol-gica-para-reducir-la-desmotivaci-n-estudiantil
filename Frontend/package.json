@@ -10,6 +10,11 @@
     "serve:ssr:Frontend": "node dist/Frontend/server/server.mjs"
   },
   "private": true,
+
+  "engines": {
+    "node": "20.x"
+  },
+
   "packageManager": "npm@11.12.1",
   "dependencies": {
     "@angular/common": "^21.2.0",
