@@ -26,6 +26,7 @@ import { AuthService } from '../../services/auth.service';
               name="email"
               placeholder="tu@email.com"
               required
+              [disabled]="isLoading()"
             />
           </div>
 
@@ -38,10 +39,11 @@ import { AuthService } from '../../services/auth.service';
               name="password"
               placeholder="••••••••"
               required
+              [disabled]="isLoading()"
             />
           </div>
 
-          <button type="submit" class="btn-login">
+          <button type="submit" class="btn-login" [disabled]="isLoading()">
             {{ isLoading() ? 'Iniciando sesión...' : 'Iniciar Sesión' }}
           </button>
 
@@ -52,11 +54,13 @@ import { AuthService } from '../../services/auth.service';
 
         <div class="footer-login">
           <p>Cuenta de prueba: test@email.com | password: 1234</p>
+          <p style="font-size: 11px; margin-top: 10px;">Admin: admin@menteactiva.com | password: admin123</p>
         </div>
       </div>
     </div>
   `,
   styles: [`
+    /* Estilos iguales que antes */
     .login-container {
       display: flex;
       justify-content: center;
@@ -122,6 +126,11 @@ import { AuthService } from '../../services/auth.service';
       border-color: #667eea;
     }
 
+    .form-group input:disabled {
+      background-color: #f5f5f5;
+      cursor: not-allowed;
+    }
+
     .btn-login {
       padding: 12px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -134,12 +143,17 @@ import { AuthService } from '../../services/auth.service';
       transition: transform 0.2s;
     }
 
-    .btn-login:hover {
+    .btn-login:hover:not(:disabled) {
       transform: translateY(-2px);
     }
 
-    .btn-login:active {
+    .btn-login:active:not(:disabled) {
       transform: translateY(0);
+    }
+
+    .btn-login:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
     }
 
     .error-message {
@@ -177,16 +191,26 @@ export class LoginComponent {
 
     this.isLoading.set(true);
 
-    setTimeout(() => {
-      const success = this.authService.login(this.email, this.password);
-      
-      if (success) {
+    // ✅ NUEVO: Llamar a la API Flask
+    this.authService.login(this.email, this.password).subscribe({
+      next: (response) => {
+        // Login exitoso - navegar al dashboard
         this.router.navigate(['/dashboard']);
-      } else {
-        this.errorMessage.set('Email o contraseña inválidos');
+        this.isLoading.set(false);
+      },
+      error: (error) => {
+        // Manejar errores de la API
+        if (error.status === 401) {
+          this.errorMessage.set('Email o contraseña inválidos');
+        } else if (error.status === 403) {
+          this.errorMessage.set('Usuario inactivo');
+        } else if (error.status === 0) {
+          this.errorMessage.set('No se puede conectar al servidor. ¿Está Flask ejecutándose en puerto 5000?');
+        } else {
+          this.errorMessage.set('Error en la conexión. Intenta nuevamente.');
+        }
+        this.isLoading.set(false);
       }
-      
-      this.isLoading.set(false);
-    }, 500);
+    });
   }
 }

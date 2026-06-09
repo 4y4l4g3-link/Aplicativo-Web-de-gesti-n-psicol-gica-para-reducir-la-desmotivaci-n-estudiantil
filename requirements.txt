@@ -1,9 +1,12 @@
-tensorflow-cpu 
+tensorflow-cpu
 numpy
 scikit-learn
 matplotlib
 pandas
-flask
-flask-cors
-pillow
-werkzeug
+flask==2.3.3
+flask-cors==4.0.0
+flask-sqlalchemy==3.0.5
+pillow==10.0.0
+werkzeug==2.3.7
+python-dotenv==1.0.0
+pyjwt==2.8.0
