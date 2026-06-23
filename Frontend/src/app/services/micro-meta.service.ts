@@ -25,7 +25,7 @@ export interface MetaResponse {
   providedIn: 'root'
 })
 export class MicroMetaService {
-  private apiUrl = 'http://localhost:5000/api/micro-metas';
+  private apiUrl = 'https://mente-muy-activa.onrender.com/api/micro-metas';
 
   constructor(
     private http: HttpClient,

@@ -18,7 +18,7 @@ export interface Capsula {
   providedIn: 'root'
 })
 export class CapsulasService {
-  private apiUrl = 'http://localhost:5000/api/capsulas-motivacion';
+  private apiUrl = 'https://mente-muy-activa.onrender.com/api/capsulas';
 
   constructor(private http: HttpClient) { }
 
