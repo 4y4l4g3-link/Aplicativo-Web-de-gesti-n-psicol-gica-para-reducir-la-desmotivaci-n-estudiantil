@@ -25,7 +25,7 @@ export interface RegisterResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private apiUrl = 'https://mente-muy-activa.onrender.com';
+  private apiUrl = 'https://mente-muy-activa.onrender.com/api/auth';
   private isAuthenticated = signal(false);
   private currentUser = signal<User | null>(null);
   private authSubject = new BehaviorSubject<boolean>(false);
