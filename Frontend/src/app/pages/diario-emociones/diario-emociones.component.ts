@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { EmotionService, Emocion, EmotionResponse } from '../../services/emotion.service';
 
 interface EmotionEntry {
   date: string;
@@ -323,39 +324,74 @@ export class DiarioEmocionesComponent {
   emotionNotes = '';
   entries = signal<EmotionEntry[]>([]);
 
+  private emotionService = inject(EmotionService);
+
   constructor() {
     this.loadEntries();
   }
 
   saveEntry() {
-    const today = new Date().toLocaleDateString('es-ES');
-    const entry: EmotionEntry = {
-      date: today,
-      emotion: this.selectedEmotion(),
-      level: this.emotionLevel,
-      notes: this.emotionNotes
+    const emocion: Emocion = {
+      estado: this.selectedEmotion(),
+      intensidad: this.emotionLevel,
+      notas: this.emotionNotes || undefined
     };
 
-    const currentEntries = this.entries();
-    this.entries.set([entry, ...currentEntries]);
-    
-    localStorage.setItem('diarioEntries', JSON.stringify(this.entries()));
-    
-    this.emotionNotes = '';
-    this.emotionLevel = 5;
-    
-    alert('✅ Entrada guardada correctamente');
+    this.emotionService.crearEmocion(emocion).subscribe({
+      next: (response: EmotionResponse) => {
+        // Log temporal para verificar la estructura de la respuesta
+        console.log('Respuesta backend:', response);
+        console.log('Emoción recibida:', response.emocion);
+        
+        // Mapear y agregar la nueva entrada al historial
+        const nuevaEntrada = this.mapEmocionToEntry(response.emocion);
+        console.log('Entrada mapeada:', nuevaEntrada);
+        
+        // Actualizar el historial con la nueva entrada
+        this.entries.set([nuevaEntrada, ...this.entries()]);
+        
+        // Limpiar el formulario
+        this.emotionNotes = '';
+        this.emotionLevel = 5;
+        this.selectedEmotion.set('Feliz');
+        
+        alert('✅ Entrada guardada correctamente');
+        
+        // Recargar el historial completo para asegurar sincronización
+        console.log('Recargando historial...');
+        this.loadEntries();
+      },
+      error: (err: unknown) => {
+        console.error('Error al guardar la emoción:', err);
+        alert('❌ Error al guardar la entrada');
+      }
+    });
   }
 
   loadEntries() {
-    const saved = localStorage.getItem('diarioEntries');
-    if (saved) {
-      this.entries.set(JSON.parse(saved));
-    }
+    this.emotionService.getEmociones().subscribe({
+      next: (emociones: Emocion[]) => {
+        this.entries.set(emociones.map((emocion: Emocion) => this.mapEmocionToEntry(emocion)));
+      },
+      error: (err: unknown) => {
+        console.error('Error al cargar las emociones:', err);
+      }
+    });
   }
 
   getEmotionIcon(emotion: string): string {
-    const found = this.emotions.find(e => e.value === emotion);
+    const found = this.emotions.find((e) => e.value === emotion);
     return found?.icon || '😐';
+  }
+
+  private mapEmocionToEntry(emocion: Emocion): EmotionEntry {
+    return {
+      date: emocion.fecha_creacion
+        ? new Date(emocion.fecha_creacion).toLocaleDateString('es-ES')
+        : new Date().toLocaleDateString('es-ES'),
+      emotion: emocion.estado,
+      level: emocion.intensidad,
+      notes: emocion.notas || ''
+    };
   }
 }

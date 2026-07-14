@@ -11,8 +11,15 @@ from functools import wraps
 import os
 
 # Importar configuración y modelos
-from config import config
+from Backend.app.config.config import config
 from models import db, Usuario, Emocion, MicroMeta, EvaluacionEstres, CapsulasMotivacion
+
+# Importar rutas de módulos migrados a Clean Architecture
+from Backend.app.routes.emotion_routes import register_routes as register_emotion_routes
+from Backend.app.routes.micro_meta_routes import register_routes as register_micro_meta_routes
+from Backend.app.routes.stress_routes import register_routes as register_stress_routes
+from Backend.app.routes.capsula_routes import register_routes as register_capsula_routes
+from Backend.app.routes.dashboard_routes import register_routes as register_dashboard_routes
 
 # Crear aplicación Flask
 app = Flask(__name__)
@@ -34,7 +41,6 @@ CORS(app, resources={
 # Crear carpeta de uploads
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-
 # ==================== UTILIDADES ====================
 
 def token_required(f):
@@ -42,7 +48,7 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-        
+
         # Buscar token en headers
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
@@ -50,10 +56,10 @@ def token_required(f):
                 token = auth_header.split(" ")[1]
             except IndexError:
                 return jsonify({'error': 'Token inválido'}), 401
-        
+
         if not token:
             return jsonify({'error': 'Token requerido'}), 401
-        
+
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             usuario_id = data['usuario_id']
@@ -64,9 +70,9 @@ def token_required(f):
             return jsonify({'error': 'Token expirado'}), 401
         except jwt.InvalidTokenError:
             return jsonify({'error': 'Token inválido'}), 401
-        
+
         return f(usuario, *args, **kwargs)
-    
+
     return decorated
 
 
@@ -77,7 +83,7 @@ def admin_required(f):
         if usuario.rol != 'administrador':
             return jsonify({'error': 'Permiso denegado'}), 403
         return f(usuario, *args, **kwargs)
-    
+
     return decorated
 
 
@@ -85,7 +91,7 @@ def generar_token(usuario_id, expires_in=None):
     """Generar token JWT"""
     if expires_in is None:
         expires_in = app.config['JWT_ACCESS_TOKEN_EXPIRES']
-    
+
     payload = {
         'usuario_id': usuario_id,
         'exp': datetime.utcnow() + expires_in,
@@ -108,15 +114,15 @@ def register():
     }
     """
     data = request.get_json()
-    
+
     # Validaciones
     if not data or not data.get('email') or not data.get('password') or not data.get('nombre'):
         return jsonify({'error': 'Email, nombre y contraseña son requeridos'}), 400
-    
+
     # Verificar si usuario existe
     if Usuario.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'El email ya está registrado'}), 409
-    
+
     try:
         # Crear nuevo usuario
         nuevo_usuario = Usuario(
@@ -125,19 +131,19 @@ def register():
             rol='estudiante'  # Por defecto
         )
         nuevo_usuario.set_password(data['password'])
-        
+
         db.session.add(nuevo_usuario)
         db.session.commit()
-        
+
         # Generar token
         token = generar_token(nuevo_usuario.id)
-        
+
         return jsonify({
             'mensaje': 'Usuario registrado exitosamente',
             'usuario': nuevo_usuario.to_dict(),
             'token': token
         }), 201
-    
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -154,21 +160,21 @@ def login():
     }
     """
     data = request.get_json()
-    
+
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'error': 'Email y contraseña son requeridos'}), 400
-    
+
     usuario = Usuario.query.filter_by(email=data['email']).first()
-    
+
     if not usuario or not usuario.check_password(data['password']):
         return jsonify({'error': 'Email o contraseña inválidos'}), 401
-    
+
     if not usuario.activo:
         return jsonify({'error': 'Usuario inactivo'}), 403
-    
+
     # Generar token
     token = generar_token(usuario.id)
-    
+
     return jsonify({
         'mensaje': 'Sesión iniciada',
         'usuario': usuario.to_dict(),
@@ -215,7 +221,7 @@ def obtener_usuario(usuario, usuario_id):
         usuario_target = Usuario.query.get(usuario_id)
         if not usuario_target:
             return jsonify({'error': 'Usuario no encontrado'}), 404
-        
+
         return jsonify(usuario_target.to_dict()), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -236,13 +242,13 @@ def crear_usuario(usuario):
     }
     """
     data = request.get_json()
-    
+
     if not data or not data.get('email') or not data.get('password') or not data.get('nombre'):
         return jsonify({'error': 'Email, nombre y contraseña son requeridos'}), 400
-    
+
     if Usuario.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'El email ya está registrado'}), 409
-    
+
     try:
         nuevo_usuario = Usuario(
             email=data['email'],
@@ -250,15 +256,15 @@ def crear_usuario(usuario):
             rol=data.get('rol', 'estudiante')
         )
         nuevo_usuario.set_password(data['password'])
-        
+
         db.session.add(nuevo_usuario)
         db.session.commit()
-        
+
         return jsonify({
             'mensaje': 'Usuario creado',
             'usuario': nuevo_usuario.to_dict()
         }), 201
-    
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -280,9 +286,9 @@ def actualizar_usuario(usuario, usuario_id):
     usuario_target = Usuario.query.get(usuario_id)
     if not usuario_target:
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    
+
     data = request.get_json()
-    
+
     try:
         if 'nombre' in data:
             usuario_target.nombre = data['nombre']
@@ -290,14 +296,14 @@ def actualizar_usuario(usuario, usuario_id):
             usuario_target.rol = data['rol']
         if 'activo' in data:
             usuario_target.activo = data['activo']
-        
+
         db.session.commit()
-        
+
         return jsonify({
             'mensaje': 'Usuario actualizado',
             'usuario': usuario_target.to_dict()
         }), 200
-    
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -314,421 +320,21 @@ def eliminar_usuario(usuario, usuario_id):
     usuario_target = Usuario.query.get(usuario_id)
     if not usuario_target:
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    
+
     # No permitir eliminar el único admin
     if usuario_target.rol == 'administrador':
         admin_count = Usuario.query.filter_by(rol='administrador').count()
         if admin_count == 1:
             return jsonify({'error': 'No se puede eliminar el único administrador'}), 400
-    
+
     try:
         db.session.delete(usuario_target)
         db.session.commit()
-        
+
         return jsonify({'mensaje': 'Usuario eliminado'}), 200
-    
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-# ==================== EMOCIONES (DIARIO) ====================
-
-@app.route('/api/emociones', methods=['GET'])
-@token_required
-def listar_emociones(usuario):
-    """
-    Obtener todas las emociones del usuario
-    GET /api/emociones
-    """
-    try:
-        emociones = Emocion.query.filter_by(usuario_id=usuario.id).order_by(Emocion.fecha_creacion.desc()).all()
-        return jsonify([e.to_dict() for e in emociones]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/emociones', methods=['POST'])
-@token_required
-def crear_emocion(usuario):
-    """
-    Crear nueva entrada de emoción
-    POST /api/emociones
-    {
-        "estado": "feliz",
-        "intensidad": 8,
-        "notas": "Hoy fue un buen día"
-    }
-    """
-    data = request.get_json()
-    
-    if not data or not data.get('estado') or data.get('intensidad') is None:
-        return jsonify({'error': 'Estado e intensidad son requeridos'}), 400
-    
-    if not (1 <= data.get('intensidad', 0) <= 10):
-        return jsonify({'error': 'Intensidad debe estar entre 1 y 10'}), 400
-    
-    try:
-        nueva_emocion = Emocion(
-            usuario_id=usuario.id,
-            estado=data['estado'],
-            intensidad=data['intensidad'],
-            notas=data.get('notas', '')
-        )
-        
-        db.session.add(nueva_emocion)
-        db.session.commit()
-        
-        return jsonify({
-            'mensaje': 'Emoción registrada',
-            'emocion': nueva_emocion.to_dict()
-        }), 201
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/emociones/<int:emocion_id>', methods=['GET'])
-@token_required
-def obtener_emocion(usuario, emocion_id):
-    """
-    Obtener emoción específica
-    GET /api/emociones/<id>
-    """
-    try:
-        emocion = Emocion.query.filter_by(id=emocion_id, usuario_id=usuario.id).first()
-        if not emocion:
-            return jsonify({'error': 'Emoción no encontrada'}), 404
-        
-        return jsonify(emocion.to_dict()), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/emociones/<int:emocion_id>', methods=['PUT'])
-@token_required
-def actualizar_emocion(usuario, emocion_id):
-    """
-    Actualizar emoción
-    PUT /api/emociones/<id>
-    """
-    emocion = Emocion.query.filter_by(id=emocion_id, usuario_id=usuario.id).first()
-    if not emocion:
-        return jsonify({'error': 'Emoción no encontrada'}), 404
-    
-    data = request.get_json()
-    
-    try:
-        if 'estado' in data:
-            emocion.estado = data['estado']
-        if 'intensidad' in data:
-            if not (1 <= data['intensidad'] <= 10):
-                return jsonify({'error': 'Intensidad debe estar entre 1 y 10'}), 400
-            emocion.intensidad = data['intensidad']
-        if 'notas' in data:
-            emocion.notas = data['notas']
-        
-        db.session.commit()
-        
-        return jsonify({
-            'mensaje': 'Emoción actualizada',
-            'emocion': emocion.to_dict()
-        }), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/emociones/<int:emocion_id>', methods=['DELETE'])
-@token_required
-def eliminar_emocion(usuario, emocion_id):
-    """
-    Eliminar emoción
-    DELETE /api/emociones/<id>
-    """
-    emocion = Emocion.query.filter_by(id=emocion_id, usuario_id=usuario.id).first()
-    if not emocion:
-        return jsonify({'error': 'Emoción no encontrada'}), 404
-    
-    try:
-        db.session.delete(emocion)
-        db.session.commit()
-        
-        return jsonify({'mensaje': 'Emoción eliminada'}), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-# ==================== MICRO-METAS ====================
-
-@app.route('/api/micro-metas', methods=['GET'])
-@token_required
-def listar_micro_metas(usuario):
-    """
-    Obtener todas las micro-metas del usuario
-    GET /api/micro-metas
-    """
-    try:
-        metas = MicroMeta.query.filter_by(usuario_id=usuario.id).order_by(MicroMeta.fecha_creacion.desc()).all()
-        return jsonify([m.to_dict() for m in metas]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/micro-metas', methods=['POST'])
-@token_required
-def crear_micro_meta(usuario):
-    """
-    Crear nueva micro-meta
-    POST /api/micro-metas
-    {
-        "titulo": "Estudiar capítulo 5",
-        "descripcion": "Leer y resumir el capítulo",
-        "prioridad": "alta",
-        "fecha_vencimiento": "2024-06-20T18:00:00"
-    }
-    """
-    data = request.get_json()
-    
-    if not data or not data.get('titulo'):
-        return jsonify({'error': 'Título es requerido'}), 400
-    
-    try:
-        fecha_vencimiento = None
-        if data.get('fecha_vencimiento'):
-            fecha_vencimiento = datetime.fromisoformat(data['fecha_vencimiento'].replace('Z', '+00:00'))
-        
-        nueva_meta = MicroMeta(
-            usuario_id=usuario.id,
-            titulo=data['titulo'],
-            descripcion=data.get('descripcion', ''),
-            prioridad=data.get('prioridad', 'media'),
-            fecha_vencimiento=fecha_vencimiento
-        )
-        
-        db.session.add(nueva_meta)
-        db.session.commit()
-        
-        return jsonify({
-            'mensaje': 'Micro-meta creada',
-            'meta': nueva_meta.to_dict()
-        }), 201
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/micro-metas/<int:meta_id>', methods=['GET'])
-@token_required
-def obtener_micro_meta(usuario, meta_id):
-    """
-    Obtener micro-meta específica
-    GET /api/micro-metas/<id>
-    """
-    try:
-        meta = MicroMeta.query.filter_by(id=meta_id, usuario_id=usuario.id).first()
-        if not meta:
-            return jsonify({'error': 'Micro-meta no encontrada'}), 404
-        
-        return jsonify(meta.to_dict()), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/micro-metas/<int:meta_id>', methods=['PUT'])
-@token_required
-def actualizar_micro_meta(usuario, meta_id):
-    """
-    Actualizar micro-meta
-    PUT /api/micro-metas/<id>
-    {
-        "titulo": "Nuevo título",
-        "progreso": 50,
-        "estado": "en_progreso"
-    }
-    """
-    meta = MicroMeta.query.filter_by(id=meta_id, usuario_id=usuario.id).first()
-    if not meta:
-        return jsonify({'error': 'Micro-meta no encontrada'}), 404
-    
-    data = request.get_json()
-    
-    try:
-        if 'titulo' in data:
-            meta.titulo = data['titulo']
-        if 'descripcion' in data:
-            meta.descripcion = data['descripcion']
-        if 'prioridad' in data:
-            meta.prioridad = data['prioridad']
-        if 'estado' in data:
-            meta.estado = data['estado']
-        if 'progreso' in data:
-            meta.progreso = data['progreso']
-        
-        db.session.commit()
-        
-        return jsonify({
-            'mensaje': 'Micro-meta actualizada',
-            'meta': meta.to_dict()
-        }), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/micro-metas/<int:meta_id>', methods=['DELETE'])
-@token_required
-def eliminar_micro_meta(usuario, meta_id):
-    """
-    Eliminar micro-meta
-    DELETE /api/micro-metas/<id>
-    """
-    meta = MicroMeta.query.filter_by(id=meta_id, usuario_id=usuario.id).first()
-    if not meta:
-        return jsonify({'error': 'Micro-meta no encontrada'}), 404
-    
-    try:
-        db.session.delete(meta)
-        db.session.commit()
-        
-        return jsonify({'mensaje': 'Micro-meta eliminada'}), 200
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-# ==================== EVALUACIONES DE ESTRÉS ====================
-
-@app.route('/api/evaluaciones-estres', methods=['GET'])
-@token_required
-def listar_evaluaciones_estres(usuario):
-    """
-    Obtener todas las evaluaciones de estrés del usuario
-    GET /api/evaluaciones-estres
-    """
-    try:
-        evaluaciones = EvaluacionEstres.query.filter_by(usuario_id=usuario.id).order_by(EvaluacionEstres.fecha_creacion.desc()).all()
-        return jsonify([e.to_dict() for e in evaluaciones]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/evaluaciones-estres', methods=['POST'])
-@token_required
-def crear_evaluacion_estres(usuario):
-    """
-    Crear nueva evaluación de estrés
-    POST /api/evaluaciones-estres
-    {
-        "pregunta_1": 5,
-        "pregunta_2": 6,
-        "pregunta_3": 4
-    }
-    """
-    data = request.get_json()
-    
-    if (not data or 
-        data.get('pregunta_1') is None or 
-        data.get('pregunta_2') is None or 
-        data.get('pregunta_3') is None):
-        return jsonify({'error': 'Las tres preguntas son requeridas'}), 400
-    
-    # Validar que sean números entre 1-10
-    for i in [1, 2, 3]:
-        valor = data.get(f'pregunta_{i}')
-        if not (1 <= valor <= 10):
-            return jsonify({'error': f'Pregunta {i} debe estar entre 1 y 10'}), 400
-    
-    try:
-        puntuacion_total = data['pregunta_1'] + data['pregunta_2'] + data['pregunta_3']
-        
-        # Calcular nivel según puntuación (3-30)
-        if puntuacion_total <= 10:
-            nivel = 'bajo'
-            recomendacion = 'Tu nivel de estrés es bajo. ¡Mantén estas buenas prácticas!'
-        elif puntuacion_total <= 20:
-            nivel = 'moderado'
-            recomendacion = 'Tu nivel de estrés es moderado. Intenta usar técnicas de relajación.'
-        else:
-            nivel = 'alto'
-            recomendacion = 'Tu nivel de estrés es alto. Considera hablar con un profesional.'
-        
-        nueva_evaluacion = EvaluacionEstres(
-            usuario_id=usuario.id,
-            pregunta_1=data['pregunta_1'],
-            pregunta_2=data['pregunta_2'],
-            pregunta_3=data['pregunta_3'],
-            puntuacion_total=puntuacion_total,
-            nivel=nivel,
-            recomendacion=recomendacion
-        )
-        
-        db.session.add(nueva_evaluacion)
-        db.session.commit()
-        
-        return jsonify({
-            'mensaje': 'Evaluación de estrés registrada',
-            'evaluacion': nueva_evaluacion.to_dict()
-        }), 201
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/evaluaciones-estres/<int:eval_id>', methods=['GET'])
-@token_required
-def obtener_evaluacion_estres(usuario, eval_id):
-    """
-    Obtener evaluación específica
-    GET /api/evaluaciones-estres/<id>
-    """
-    try:
-        evaluacion = EvaluacionEstres.query.filter_by(id=eval_id, usuario_id=usuario.id).first()
-        if not evaluacion:
-            return jsonify({'error': 'Evaluación no encontrada'}), 404
-        
-        return jsonify(evaluacion.to_dict()), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ==================== CÁPSULAS DE MOTIVACIÓN ====================
-
-@app.route('/api/capsulas-motivacion', methods=['GET'])
-def listar_capsulas():
-    """
-    Obtener todas las cápsulas de motivación
-    GET /api/capsulas-motivacion
-    (No requiere autenticación - contenido público)
-    """
-    try:
-        capsulas = CapsulasMotivacion.query.all()
-        return jsonify([c.to_dict() for c in capsulas]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/capsulas-motivacion/<int:capsula_id>', methods=['GET'])
-def obtener_capsula(capsula_id):
-    """
-    Obtener cápsula específica
-    GET /api/capsulas-motivacion/<id>
-    """
-    try:
-        capsula = CapsulasMotivacion.query.get(capsula_id)
-        if not capsula:
-            return jsonify({'error': 'Cápsula no encontrada'}), 404
-        
-        return jsonify(capsula.to_dict()), 200
-    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
@@ -757,6 +363,18 @@ def health_check():
     return jsonify({'status': 'ok'}), 200
 
 
+# ==================== REGISTRO DE BLUEPRINTS (CLEAN ARCHITECTURE) ====================
+# Los módulos de Emociones, Micro-Metas, Evaluaciones de Estrés y Cápsulas
+# se registran únicamente a través de sus Blueprints. La lógica original de
+# backend.py para estos módulos fue migrada a controllers/services/repositories.
+
+register_emotion_routes(app)
+register_micro_meta_routes(app)
+register_stress_routes(app)
+register_capsula_routes(app)
+register_dashboard_routes(app)
+
+
 # ==================== INICIALIZAR BD Y EJECUTAR ====================
 
 def init_db():
@@ -764,7 +382,7 @@ def init_db():
     with app.app_context():
         # Crear todas las tablas
         db.create_all()
-        
+
         # Crear usuario admin de prueba si no existe
         admin = Usuario.query.filter_by(email='admin@menteactiva.com').first()
         if not admin:
@@ -775,7 +393,7 @@ def init_db():
             )
             admin.set_password('admin123')
             db.session.add(admin)
-        
+
         # Crear usuario estudiante de prueba si no existe
         estudiante = Usuario.query.filter_by(email='test@email.com').first()
         if not estudiante:
@@ -786,7 +404,7 @@ def init_db():
             )
             estudiante.set_password('1234')
             db.session.add(estudiante)
-        
+
         # Crear algunas cápsulas de motivación si no existen
         if CapsulasMotivacion.query.count() == 0:
             capsulas = [
@@ -810,14 +428,14 @@ def init_db():
                 )
             ]
             db.session.add_all(capsulas)
-        
+
         db.session.commit()
 
 
 if __name__ == '__main__':
     # Inicializar base de datos
     init_db()
-    
+
     # Ejecutar servidor
     app.run(
         debug=True,

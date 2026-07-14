@@ -17,15 +17,15 @@ export interface EvaluacionEstres {
 }
 
 export interface EvaluacionResponse {
-  mensaje: string;
-  evaluacion: EvaluacionEstres;
+  mensaje?: string;
+  evaluacion?: EvaluacionEstres;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class StressService {
-  private apiUrl = 'https://mente-muy-activa.onrender.com/api/evaluaciones-estres';
+  private apiUrl = 'http://127.0.0.1:5000/api/evaluaciones-estres/';
 
   constructor(
     private http: HttpClient,

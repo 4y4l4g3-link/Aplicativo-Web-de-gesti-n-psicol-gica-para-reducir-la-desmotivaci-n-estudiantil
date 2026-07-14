@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 
-export interface MicroMeta {
+export interface BackendMicroMeta {
   id?: number;
   usuario_id?: number;
   titulo: string;
@@ -16,64 +17,71 @@ export interface MicroMeta {
   fecha_actualizacion?: string;
 }
 
-export interface MetaResponse {
-  mensaje: string;
-  meta: MicroMeta;
+export interface MicroMetaViewModel {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  tareas: { id: number; nombre: string; completada: boolean }[];
+  completado: number;
+  total: number;
+  prioridad: 'alta' | 'media' | 'baja';
+  fechaLimite: string;
+}
+
+export interface CreateMicroMetaPayload {
+  titulo: string;
+  descripcion?: string;
+  prioridad: 'alta' | 'media' | 'baja';
+  estado: 'pendiente' | 'en_progreso' | 'completada';
+  progreso: number;
+  fecha_vencimiento?: string | null;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class MicroMetaService {
-  private apiUrl = 'https://mente-muy-activa.onrender.com/api/micro-metas';
+  private readonly apiUrl = 'http://127.0.0.1:5000/api/micro-metas/';
 
   constructor(
     private http: HttpClient,
     private authService: AuthService
   ) { }
 
-  /**
-   * Obtener todas las micro-metas del usuario
-   */
-  getMetas(): Observable<MicroMeta[]> {
-    return this.http.get<MicroMeta[]>(this.apiUrl, {
+  getMetas(): Observable<MicroMetaViewModel[]> {
+    return this.http.get<BackendMicroMeta[]>(this.apiUrl, {
       headers: this.authService.getAuthHeaders()
-    });
+    }).pipe(
+      map((metas) => metas.map((meta) => this.mapToViewModel(meta)))
+    );
   }
 
-  /**
-   * Obtener micro-meta específica
-   */
-  getMeta(id: number): Observable<MicroMeta> {
-    return this.http.get<MicroMeta>(`${this.apiUrl}/${id}`, {
+  crearMeta(meta: CreateMicroMetaPayload): Observable<MicroMetaViewModel> {
+    return this.http.post<BackendMicroMeta>(this.apiUrl, meta, {
       headers: this.authService.getAuthHeaders()
-    });
+    }).pipe(
+      map((metaCreada) => this.mapToViewModel(metaCreada))
+    );
   }
 
-  /**
-   * Crear nueva micro-meta
-   */
-  crearMeta(meta: MicroMeta): Observable<MetaResponse> {
-    return this.http.post<MetaResponse>(this.apiUrl, meta, {
-      headers: this.authService.getAuthHeaders()
-    });
+  private mapToViewModel(meta: BackendMicroMeta): MicroMetaViewModel {
+    return {
+      id: meta.id ?? Date.now(),
+      titulo: meta.titulo,
+      descripcion: meta.descripcion ?? '',
+      tareas: [],
+      completado: 0,
+      total: 0,
+      prioridad: meta.prioridad ?? 'media',
+      fechaLimite: this.formatFecha(meta.fecha_vencimiento)
+    };
   }
 
-  /**
-   * Actualizar micro-meta
-   */
-  actualizarMeta(id: number, meta: Partial<MicroMeta>): Observable<MetaResponse> {
-    return this.http.put<MetaResponse>(`${this.apiUrl}/${id}`, meta, {
-      headers: this.authService.getAuthHeaders()
-    });
-  }
+  private formatFecha(fecha: string | null | undefined): string {
+    if (!fecha) {
+      return 'Sin fecha';
+    }
 
-  /**
-   * Eliminar micro-meta
-   */
-  eliminarMeta(id: number): Observable<{ mensaje: string }> {
-    return this.http.delete<{ mensaje: string }>(`${this.apiUrl}/${id}`, {
-      headers: this.authService.getAuthHeaders()
-    });
+    return fecha.includes('T') ? fecha.split('T')[0] : fecha;
   }
 }

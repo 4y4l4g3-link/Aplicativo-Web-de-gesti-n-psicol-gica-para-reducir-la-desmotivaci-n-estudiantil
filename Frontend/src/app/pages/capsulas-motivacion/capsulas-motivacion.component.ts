@@ -1,6 +1,7 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { CapsulasService } from '../../services/capsulas.service';
 
 interface Capsula {
   id: number;
@@ -314,47 +315,49 @@ interface Capsula {
     }
   `]
 })
-export class CapsulasMotivacionComponent {
+export class CapsulasMotivacionComponent implements OnInit {
   selectedCapsula = signal<Capsula | null>(null);
 
-  capsulas: Capsula[] = [
-    {
-      id: 1,
-      title: 'El Poder del Comienzo',
-      description: 'Descubre cómo empezar es más importante que terminar.',
-      author: 'Dr. Motivación',
-      duration: '3 min',
-      content: `Muchas veces nos paraliza la idea de que debemos ser perfectos desde el inicio. La verdad es que el comienzo es solo el primer paso. Cada estudiante exitoso comenzó de cero. Lo importante es dar ese primer paso, por pequeño que sea. 
+  // Mantener el mismo nombre `capsulas` para no cambiar el HTML
+  capsulas: Capsula[] = [];
 
-Cuando comienzas, generates momentum. Ese movimiento inicial es lo que te llevará al éxito. No esperes a estar "listos", simplemente empieza. La perfección viene después.
+  constructor(
+    private capsulasService: CapsulasService,
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
+  ) {}
 
-Recuerda: Un viaje de mil millas comienza con un solo paso.`
-    },
-    {
-      id: 2,
-      title: 'Fracaso, Tu Mejor Maestro',
-      description: 'Aprende a ver los errores como oportunidades de crecimiento.',
-      author: 'Psic. Laura',
-      duration: '4 min',
-      content: `El fracaso no es el fin del camino, es parte del camino. Cada error te enseña algo valioso. Los estudiantes más exitosos son aquellos que más han fallado.
+  ngOnInit(): void {
+    this.loadCapsulas();
+  }
 
-La diferencia no está en no fallar, sino en cómo respondes ante el fracaso. ¿Te rindes o intentas nuevamente? Los ganadores siempre eligen la segunda opción.
-
-Tus errores son datos, no definiciones. Úsalos para mejorar.`
-    },
-    {
-      id: 3,
-      title: 'Hoy es Tu Día',
-      description: 'Motivación pura para conquistar tus metas diarias.',
-      author: 'Coach Juan',
-      duration: '2 min',
-      content: `Hoy es un nuevo día lleno de posibilidades. Las decisiones que tomes hoy formarán la versión de ti del mañana. 
-
-No es sobre el examen de mañana, es sobre quién quieres ser cuando termines este día. Cada acción cuenta. Cada esfuerzo suma.
-
-Eres más capaz de lo que crees. Es hora de mostrárlo.`
-    }
-  ];
+  loadCapsulas(): void {
+    this.capsulasService.getCapsulas().subscribe({
+      next: (data) => {
+        try {
+          // Mapear respuesta a la interfaz local
+          this.capsulas = data.map((c: any) => ({
+            id: c.id,
+            title: c.titulo ?? c.title ?? '',
+            description: (c.contenido ?? '').slice(0, 100),
+            author: c.autor ?? c.author ?? 'Desconocido',
+            duration: c.duracion_segundos ? `${Math.ceil(c.duracion_segundos / 60)} min` : (c.duration ?? ''),
+            content: c.contenido ?? c.content ?? ''
+          }));
+          // Debug temporal eliminado: producción limpia
+          // Forzar detección de cambios por seguridad
+          try { this.cdr.detectChanges(); } catch(e) { /* noop */ }
+        } catch (e) {
+          console.error('Error mapeando cápsulas:', e);
+          this.capsulas = [];
+        }
+      },
+      error: (err) => {
+        console.error('Error cargando cápsulas:', err);
+        this.capsulas = [];
+      }
+    });
+  }
 
   selectCapsula(capsula: Capsula) {
     this.selectedCapsula.set(capsula);

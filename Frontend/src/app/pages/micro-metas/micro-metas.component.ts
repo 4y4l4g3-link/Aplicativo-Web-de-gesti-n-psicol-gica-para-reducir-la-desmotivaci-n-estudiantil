@@ -1,18 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-
-interface MicroMeta {
-  id: number;
-  titulo: string;
-  descripcion: string;
-  tareas: { id: number; nombre: string; completada: boolean }[];
-  completado: number;
-  total: number;
-  prioridad: 'alta' | 'media' | 'baja';
-  fechaLimite: string;
-}
+import { MicroMetaService, MicroMetaViewModel } from '../../services/micro-meta.service';
 
 @Component({
   selector: 'app-micro-metas',
@@ -419,7 +409,9 @@ interface MicroMeta {
   `]
 })
 export class MetasComponent {
-  metas = signal<MicroMeta[]>([]);
+  private readonly microMetaService = inject(MicroMetaService);
+
+  metas = signal<MicroMetaViewModel[]>([]);
   nuevoTitulo = '';
   nuevoDescripcion = '';
   nuevaPrioridad: 'alta' | 'media' | 'baja' = 'media';
@@ -437,30 +429,30 @@ export class MetasComponent {
       return;
     }
 
-    const nuevaMeta: MicroMeta = {
-      id: Date.now(),
-      titulo: this.nuevoTitulo,
-      descripcion: this.nuevoDescripcion,
-      tareas: [],
-      completado: 0,
-      total: 0,
+    this.microMetaService.crearMeta({
+      titulo: this.nuevoTitulo.trim(),
+      descripcion: this.nuevoDescripcion.trim(),
       prioridad: this.nuevaPrioridad,
-      fechaLimite: this.nuevaFecha || 'Sin fecha'
-    };
-
-    this.metas.set([...this.metas(), nuevaMeta]);
-    this.metasExpandidas[nuevaMeta.id] = true;
-    this.guardarMetas();
-
-    this.nuevoTitulo = '';
-    this.nuevoDescripcion = '';
-    this.nuevaPrioridad = 'media';
-    this.nuevaFecha = '';
+      estado: 'pendiente',
+      progreso: 0,
+      fecha_vencimiento: this.nuevaFecha || null
+    }).subscribe({
+      next: () => {
+        this.nuevoTitulo = '';
+        this.nuevoDescripcion = '';
+        this.nuevaPrioridad = 'media';
+        this.nuevaFecha = '';
+        this.cargarMetas();
+      },
+      error: (error) => {
+        console.error('Error al crear una micro-meta', error);
+        alert('No se pudo guardar la meta en el servidor.');
+      }
+    });
   }
 
   eliminarMeta(id: number) {
-    this.metas.set(this.metas().filter(m => m.id !== id));
-    this.guardarMetas();
+    this.metas.set(this.metas().filter((meta) => meta.id !== id));
   }
 
   toggleTareas(id: number) {
@@ -472,7 +464,7 @@ export class MetasComponent {
     if (!nombreTarea) return;
 
     const metas = this.metas();
-    const metaIndex = metas.findIndex(m => m.id === metaId);
+    const metaIndex = metas.findIndex((meta) => meta.id === metaId);
 
     if (metaIndex !== -1) {
       const nuevaTarea = {
@@ -485,35 +477,36 @@ export class MetasComponent {
       metas[metaIndex].total = metas[metaIndex].tareas.length;
       this.metas.set([...metas]);
       this.nuevaTareaInput[metaId] = '';
-      this.guardarMetas();
     }
   }
 
   toggleTarea(metaId: number, tareaId: number) {
     const metas = this.metas();
-    const metaIndex = metas.findIndex(m => m.id === metaId);
+    const metaIndex = metas.findIndex((meta) => meta.id === metaId);
 
     if (metaIndex !== -1) {
-      const tarea = metas[metaIndex].tareas.find(t => t.id === tareaId);
+      const tarea = metas[metaIndex].tareas.find((item) => item.id === tareaId);
       if (tarea) {
         tarea.completada = !tarea.completada;
-        metas[metaIndex].completado = metas[metaIndex].tareas.filter(t => t.completada).length;
+        metas[metaIndex].completado = metas[metaIndex].tareas.filter((item) => item.completada).length;
         this.metas.set([...metas]);
-        this.guardarMetas();
       }
     }
   }
 
-  guardarMetas() {
-    localStorage.setItem('micrometas', JSON.stringify(this.metas()));
-  }
-
   cargarMetas() {
-    const saved = localStorage.getItem('micrometas');
-    if (saved) {
-      const metasData = JSON.parse(saved) as MicroMeta[];
-      this.metas.set(metasData);
-      metasData.forEach(m => this.metasExpandidas[m.id] = false);
-    }
+    this.microMetaService.getMetas().subscribe({
+      next: (metas) => {
+        this.metas.set(metas);
+        this.metasExpandidas = {};
+        metas.forEach((meta) => {
+          this.metasExpandidas[meta.id] = false;
+        });
+      },
+      error: (error) => {
+        console.error('Error al cargar micro-metas', error);
+        this.metas.set([]);
+      }
+    });
   }
 }

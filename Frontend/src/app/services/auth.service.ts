@@ -25,27 +25,40 @@ export interface RegisterResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private apiUrl = 'https://mente-muy-activa.onrender.com/api/auth';
+  private readonly apiUrl = 'http://127.0.0.1:5000/api/auth';
+  private readonly tokenKey = 'authToken';
+  private readonly userKey = 'currentUser';
   private isAuthenticated = signal(false);
   private currentUser = signal<User | null>(null);
   private authSubject = new BehaviorSubject<boolean>(false);
 
   constructor(private http: HttpClient) {
-    // Solo ejecutar en cliente, no en servidor
     if (typeof window !== 'undefined') {
-      this.loadAuthState();
+      this.restoreSessionFromStorage();
     }
   }
 
-  private loadAuthState() {
+  private restoreSessionFromStorage(): void {
     if (typeof window === 'undefined') return;
-    
-    const token = localStorage.getItem('authToken');
-    const user = localStorage.getItem('currentUser');
-    if (token && user) {
+
+    const token = window.localStorage.getItem(this.tokenKey);
+    const storedUser = window.localStorage.getItem(this.userKey);
+
+    if (token) {
       this.isAuthenticated.set(true);
-      this.currentUser.set(JSON.parse(user));
       this.authSubject.next(true);
+
+      if (storedUser) {
+        try {
+          this.currentUser.set(JSON.parse(storedUser));
+        } catch {
+          this.currentUser.set(null);
+        }
+      }
+    } else {
+      this.isAuthenticated.set(false);
+      this.currentUser.set(null);
+      this.authSubject.next(false);
     }
   }
 
@@ -94,10 +107,10 @@ export class AuthService {
    */
   private saveAuth(response: LoginResponse | RegisterResponse): void {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('currentUser', JSON.stringify(response.usuario));
+      window.localStorage.setItem(this.tokenKey, response.token);
+      window.localStorage.setItem(this.userKey, JSON.stringify(response.usuario));
     }
-    
+
     this.isAuthenticated.set(true);
     this.currentUser.set(response.usuario);
     this.authSubject.next(true);
@@ -108,8 +121,8 @@ export class AuthService {
    */
   logout() {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('currentUser');
+      window.localStorage.removeItem(this.tokenKey);
+      window.localStorage.removeItem(this.userKey);
     }
     this.isAuthenticated.set(false);
     this.currentUser.set(null);
@@ -120,14 +133,35 @@ export class AuthService {
    * Verificar si el usuario está autenticado
    */
   isLoggedIn() {
-    return this.isAuthenticated();
+    if (this.isAuthenticated()) {
+      return true;
+    }
+
+    return this.getToken() !== null;
   }
 
   /**
    * Obtener usuario actual
    */
   getCurrentUser() {
-    return this.currentUser();
+    if (this.currentUser()) {
+      return this.currentUser();
+    }
+
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const storedUser = window.localStorage.getItem(this.userKey);
+    if (!storedUser) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(storedUser);
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -142,7 +176,7 @@ export class AuthService {
    */
   getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('authToken');
+      return window.localStorage.getItem(this.tokenKey);
     }
     return null;
   }
@@ -152,9 +186,10 @@ export class AuthService {
    */
   getAuthHeaders(): HttpHeaders {
     const token = this.getToken();
-    return new HttpHeaders({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json'
     });
+
+    return token ? headers.set('Authorization', `Bearer ${token}`) : headers;
   }
 }

@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { StressService } from '../../services/stress.service';
 
 @Component({
   selector: 'app-termometro-estres',
@@ -426,6 +427,8 @@ import { RouterLink } from '@angular/router';
   `]
 })
 export class TermometroEstresComponent {
+  private stressService = inject(StressService);
+
   preguntas = [
     '¿Cuánto estrés académico sientes en este momento?',
     '¿Cuánta carga de tareas tienes que entregar próximamente?',
@@ -436,6 +439,8 @@ export class TermometroEstresComponent {
   respuestas: (number | null)[] = [null, null, null];
   mostrarResultados = signal(false);
   puntajeTotal = 0;
+  nivelBackend: string | null = null;
+  recomendacionBackend: string | null = null;
 
   seleccionarRespuesta(nivel: number) {
     this.respuestas[this.preguntaActual] = nivel;
@@ -458,13 +463,50 @@ export class TermometroEstresComponent {
   }
 
   calcularResultados() {
-    this.puntajeTotal = (this.respuestas as number[]).reduce((a, b) => a + b, 0);
+    const respuestasNumericas = this.respuestas.filter((respuesta): respuesta is number => respuesta !== null);
+
+    if (respuestasNumericas.length === 3) {
+      this.puntajeTotal = respuestasNumericas.reduce((a, b) => a + b, 0);
+      this.enviarEvaluacionBackend(respuestasNumericas[0], respuestasNumericas[1], respuestasNumericas[2]);
+    } else {
+      this.puntajeTotal = 0;
+    }
+
     this.mostrarResultados.set(true);
   }
 
+  private enviarEvaluacionBackend(pregunta1: number, pregunta2: number, pregunta3: number) {
+    this.stressService.crearEvaluacion({
+      pregunta_1: pregunta1,
+      pregunta_2: pregunta2,
+      pregunta_3: pregunta3
+    }).subscribe({
+      next: (response) => {
+        console.log('Evaluación guardada:', response);
+        const evaluacion = (response as { evaluacion?: any } | any)?.evaluacion ?? response;
+
+        if (evaluacion) {
+          if (typeof evaluacion.puntuacion_total === 'number') {
+            this.puntajeTotal = evaluacion.puntuacion_total;
+          }
+
+          this.nivelBackend = evaluacion.nivel ?? null;
+          this.recomendacionBackend = evaluacion.recomendacion ?? null;
+        }
+      },
+      error: (error) => {
+        console.error('Error al guardar evaluación de estrés:', error);
+      }
+    });
+  }
+
   getNivelEstres(): string {
-    if (this.puntajeTotal <= 10) return 'bajo';
-    if (this.puntajeTotal <= 20) return 'moderado';
+    return this.nivelBackend ?? this.getNivelLocal(this.puntajeTotal);
+  }
+
+  private getNivelLocal(puntajeTotal: number): string {
+    if (puntajeTotal <= 10) return 'bajo';
+    if (puntajeTotal <= 20) return 'moderado';
     return 'alto';
   }
 
@@ -494,8 +536,12 @@ export class TermometroEstresComponent {
   }
 
   getRecomendaciones(): string[] {
+    if (this.recomendacionBackend) {
+      return [this.recomendacionBackend];
+    }
+
     const nivel = this.getNivelEstres();
-    
+
     if (nivel === 'bajo') {
       return [
         '✅ Mantén tu rutina de estudios',
@@ -504,7 +550,7 @@ export class TermometroEstresComponent {
         '✅ Duerme adecuadamente cada noche'
       ];
     }
-    
+
     if (nivel === 'moderado') {
       return [
         '🎯 Usa Micro-Metas para dividir proyectos grandes',
@@ -514,7 +560,7 @@ export class TermometroEstresComponent {
         '🤝 Habla con amigos o familia sobre lo que te preocupa'
       ];
     }
-    
+
     return [
       '🆘 Solicita una sesión de asesoría psicológica',
       '💡 Escucha Cápsulas de Motivación varias veces al día',
@@ -531,6 +577,8 @@ export class TermometroEstresComponent {
     this.respuestas = [null, null, null];
     this.mostrarResultados.set(false);
     this.puntajeTotal = 0;
+    this.nivelBackend = null;
+    this.recomendacionBackend = null;
   }
 
   getColorNivel(nivel: number): string {
