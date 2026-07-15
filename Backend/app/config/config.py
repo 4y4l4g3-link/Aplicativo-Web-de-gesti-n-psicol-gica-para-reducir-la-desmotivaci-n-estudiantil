@@ -23,7 +23,7 @@ class Config:
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB máximo
 
     # CORS
-    CORS_ORIGINS = ['http://localhost:4200', 'http://localhost:3000']
+    CORS_ORIGINS = ['http://localhost:4200', 'http://localhost:3000', 'https://aplicativo-web-de-gesti-n-psicol-gi.vercel.app' ]
 
 class DevelopmentConfig(Config):
     """Configuración de desarrollo"""
