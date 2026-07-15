@@ -25,7 +25,7 @@ export interface RegisterResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly apiUrl = 'http://127.0.0.1:5000/api/auth';
+  private readonly apiUrl = 'https://menteactiva-backend.onrender.com/api/auth';
   private readonly tokenKey = 'authToken';
   private readonly userKey = 'currentUser';
   private isAuthenticated = signal(false);

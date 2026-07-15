@@ -41,7 +41,7 @@ export interface CreateMicroMetaPayload {
   providedIn: 'root'
 })
 export class MicroMetaService {
-  private readonly apiUrl = 'http://127.0.0.1:5000/api/micro-metas/';
+  private readonly apiUrl = 'https://menteactiva-backend.onrender.com/api/micro-metas/';
 
   constructor(
     private http: HttpClient,

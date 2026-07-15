@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
@@ -73,7 +73,7 @@ interface MenuItem {
             </div>
           </section>
 
-          <section class="summary-grid" *ngIf="summary; else loadingSummary">
+          <section class="summary-grid" *ngIf="!isLoadingSummary && summary; else loadingSummary">
             <article class="summary-card">
               <div class="summary-icon">😊</div>
               <div>
@@ -503,6 +503,7 @@ export class DashboardComponent implements OnInit {
   currentUser: User | null = null;
   isMenuOpen = false;
   summary: DashboardSummary | null = null;
+  isLoadingSummary = true;
 
   menuItems: MenuItem[] = [
     {
@@ -544,26 +545,38 @@ export class DashboardComponent implements OnInit {
     private router: Router,
     private dashboardService: DashboardService
   ) {
+    console.log('[DashboardComponent] constructor');
     this.currentUser = this.authService.getCurrentUser();
   }
 
   ngOnInit() {
+    console.log('[DashboardComponent] ngOnInit');
     this.loadSummary();
   }
 
   loadSummary() {
+    console.log('[DashboardComponent] loadSummary');
+
+    const cachedSummary = this.dashboardService.getCurrentSummary();
+    this.summary = cachedSummary;
+    this.isLoadingSummary = !cachedSummary;
+
     this.dashboardService.getSummary().subscribe({
       next: (data) => {
+        console.log('[DashboardComponent] subscribe next', data);
         this.summary = data;
+        this.isLoadingSummary = false;
       },
-      error: () => {
-        this.summary = {
+      error: (error) => {
+        console.error('[DashboardComponent] subscribe error', error);
+        this.summary = this.dashboardService.getCurrentSummary() ?? {
           emociones: 0,
           micro_metas: 0,
           micro_metas_completadas: 0,
           capsulas: 0,
           ultimo_nivel_estres: 'Sin registros'
         };
+        this.isLoadingSummary = false;
       }
     });
   }

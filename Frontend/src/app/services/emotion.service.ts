@@ -22,7 +22,7 @@ export interface EmotionResponse {
   providedIn: 'root'
 })
 export class EmotionService {
-  private apiUrl = 'http://127.0.0.1:5000/api/emociones/';
+  private apiUrl = 'https://menteactiva-backend.onrender.com/api/emociones/';
 
   constructor(
     private http: HttpClient,

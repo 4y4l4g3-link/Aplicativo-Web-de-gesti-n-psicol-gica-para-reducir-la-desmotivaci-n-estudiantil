@@ -25,7 +25,7 @@ export interface EvaluacionResponse {
   providedIn: 'root'
 })
 export class StressService {
-  private apiUrl = 'http://127.0.0.1:5000/api/evaluaciones-estres/';
+  private apiUrl = 'https://menteactiva-backend.onrender.com/api/evaluaciones-estres/';
 
   constructor(
     private http: HttpClient,
